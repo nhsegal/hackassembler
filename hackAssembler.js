@@ -1,0 +1,326 @@
+if (process.argv.length < 3) {
+  console.log('Usage: node ' + process.argv[1] + ' FILENAME');
+  process.exit(1);
+}
+
+const filename = process.argv[2];
+const path = require('path');
+const readline = require('readline');
+const fs = require('fs');
+
+let lineCounter = 0;
+let freeAddress = 16;
+let jumpDest = 0;
+let variableTable = {
+  0: 0,
+  1: 1,
+  2: 2,
+  3: 3,
+  4: 4,
+  5: 5,
+  6: 6,
+  7: 7,
+  8: 8,
+  9: 9,
+  10: 10,
+  11: 11,
+  12: 12,
+  13: 13,
+  14: 14,
+  15: 15,
+  R0: 0,
+  R1: 1,
+  R2: 2,
+  R3: 3,
+  R4: 4,
+  R5: 5,
+  R6: 6,
+  R7: 7,
+  R8: 8,
+  R9: 9,
+  R10: 10,
+  R11: 11,
+  R12: 12,
+  R13: 13,
+  R14: 14,
+  R15: 15,
+  SCREEN: 16384,
+  KBD: 24576,
+  SP: 0,
+  LCL: 1,
+  ARG: 2,
+  THIS: 3,
+  THAT: 4,
+};
+
+function preProcessFile(inputFilePath) {
+
+  const inputStream = fs.createReadStream(inputFilePath, 'utf8');
+  inputStream.on('data', (chunk) => {
+    const lines = chunk.split('\n');
+    lines.forEach((line) => {
+      handleLabel(stripComments(line));
+    });
+  });
+
+  inputStream.on('end', () => {
+    console.log(`length ${lineCounter}`)
+    lineCounter = 0;
+    console.log('File preprocessing complete.');
+    processFile(inputFilePath, outputFilePath)
+  });
+
+  inputStream.on('error', (err) => {
+    console.error('Error reading input file:', err);
+  });
+}
+
+function processFile(inputFilePath, outputFilePath) {
+  const inputStream = fs.createReadStream(inputFilePath, 'utf8');
+  const outputStream = fs.createWriteStream(outputFilePath, 'utf8');
+  inputStream.on('data', (chunk) => {
+    const lines = chunk.split('\n');
+    lines.forEach((line) => {
+      const processedLine = parse(stripComments(line));
+      if (processedLine.length > 0) {
+        lineCounter += 1;
+        outputStream.write(processedLine + '\n');
+      }
+    });
+  });
+
+  inputStream.on('end', () => {
+    // Close the output stream once all lines are written
+    outputStream.end();
+    console.log('File processing complete.');
+  });
+
+  inputStream.on('error', (err) => {
+    console.error('Error reading input file:', err);
+  });
+
+  outputStream.on('error', (err) => {
+    console.error('Error writing to output file:', err);
+  });
+}
+const inputFilePath = filename;
+const outputFilePath = path.join(
+  path.dirname(filename),
+  path.basename(filename, path.extname(filename)) + '1' + '.hack'
+);
+
+
+preProcessFile(inputFilePath);
+  
+
+function stripComments(str) {
+  let output = '';
+  let comment = false;
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === '/' && str[i + 1] && str[i + 1] === '/') {
+      comment = true;
+    }
+    if (!comment) {
+      output = output + str[i]; 
+    }
+    if (str[i] == '\n') {
+      comment = false;
+    }
+  }
+  return output.trim();
+}
+
+function parse(line) {
+  let output = '';
+  if (line.length == 0) return output;
+  // determine type of command
+  if (line[0] == '(') {
+  } else if (line[0] == '@') {
+    output = buildAInstruction(line);
+  } else {
+    output = buildCInstruction(line);
+  }
+  return output;
+}
+
+function handleLabel(str) {
+  if (str.length < 1) {
+    return;
+  }
+  if (str[0] == '(') {
+    let label = str.slice(1, str.length - 1);
+    jumpDest = lineCounter;
+    variableTable[label] = parseInt(jumpDest);
+    return;
+  }
+  lineCounter++;
+  return;
+}
+
+function buildAInstruction(str) {
+  let varName = str.slice(1);
+  let output;
+
+  // If the variable name is not in dict add it
+  if (!(varName in variableTable)) {
+    // if it is an int 
+    if (parseInt(varName)) {
+      variableTable[varName] = parseInt(varName);
+    }
+    else {
+      variableTable[varName] = freeAddress;
+    }
+
+    while (Object.values(variableTable).includes(freeAddress)) {
+      freeAddress += 1;
+    }
+  }
+
+  let binVal = Number(variableTable[varName]).toString(2);
+  output = ('0000000000000000' + binVal).slice(-16);
+  if (output.length < 16){
+    console.log(`output: ${output}`)
+    console.log(`line: ${lineCounter}`)
+  }
+  return output;
+}
+
+function buildCInstruction(str) {
+  if (str == 'AM=M+1') {
+    console.log('here')
+  }
+  let prefix = '111';
+  let d1 = '0';
+  let d2 = '0';
+  let d3 = '0';
+  let j1j2j3 = '000';
+  let c = null;
+  let comp = null;
+  let a = '0';
+
+  // if there is a dest
+  
+  if (str.includes('=')) {
+
+    let dest = str.slice(0, str.indexOf('='));
+    if (str.includes(';')){
+      comp = str.slice(str.indexOf('=') + 1, str.indexOf(';'));
+    } else {
+      comp = str.slice(str.indexOf('=') + 1, str.length);
+    }
+    
+    if (dest.includes('M')) {
+      d3 = '1';
+    }
+    if (dest.includes('D')) {
+      d2 = '1';
+    }
+    if (dest.includes('A')) {
+      d1 = '1';
+    }
+  } else if (str.includes(';')){
+    comp = str.slice(0, str.indexOf(';'));
+  } else {
+    comp = str
+  }
+
+  // if there is a jump
+  if (str.includes(';')) {
+    let jump = str.slice(str.indexOf(';'));
+
+    if (jump.includes('JGT')) {
+      j1j2j3 = '001';
+    }
+    if (jump.includes('JEQ')) {
+      j1j2j3 = '010';
+    }
+    if (jump.includes('JGE')) {
+      j1j2j3 = '011';
+    }
+    if (jump.includes('JLT')) {
+      j1j2j3 = '100';
+    }
+    if (jump.includes('JNE')) {
+      j1j2j3 = '101';
+    }
+    if (jump.includes('JLE')) {
+      j1j2j3 = '110';
+    }
+    if (jump.includes('JMP')) {
+      j1j2j3 = '111';
+    }
+  }
+  // comp bits
+  if (comp == '0') {
+    c = '101010';
+  }
+  if (comp == '1') {
+    c = '111111';
+  }
+  if (comp == '-1') {
+    c = '111010';
+  }
+  if (comp == 'D') {
+    c = '001100';
+  }
+  if (comp == 'A' || comp == 'M') {
+    c = '110000';
+  }
+  if (comp == '!D') {
+    c = '001101';
+  }
+  if (comp == '!A' || comp == '!M') {
+    c = '110001';
+  }
+  if (comp == '-D') {
+    c = '001111';
+  }
+  if (comp == '-A' || comp == '-M') {
+    c = '110011';
+  }
+  if (comp == 'D+1') {
+    c = '011111';
+  }
+  if (comp == 'A+1' || comp == 'M+1') {
+    c = '110111';
+  }
+  if (comp == 'D-1') {
+    c = '001110';
+  }
+  if (comp == 'A-1' || comp == 'M-1') {
+    c = '110010';
+  }
+  if (comp == 'D+A' || comp == 'D+M'||comp == 'A+D' || comp == 'M+D' ) {
+    c = '000010';
+  }
+  if (comp == 'D-A' || comp == 'D-M') {
+    c = '010011';
+  }
+  if (comp == 'A-D' || comp == 'M-D') {
+    c = '000111';
+  }
+  if (comp == 'D&A' || comp == 'D&M' || comp == 'A&D' || comp == 'M&D' ) {
+    c = '000000';
+  }
+  if (comp == 'D|A' || comp == 'D|M'|| comp == 'A|D' || comp == 'M|D') {
+    c = '010101';
+  }
+  if (comp.includes('M')) {
+    a = '1';
+  }
+  let output = prefix + a + c + d1 + d2 + d3 + j1j2j3;
+  if (!c || c.length < 6){
+    console.log(`comp length issue`)
+    console.log(`str: ${str}`)
+    console.log(`comp: ${comp}`)
+    console.log(`line: ${lineCounter}`)
+
+  }
+
+  return output;
+}
+
+const test =  stripComments('AM=M+1')
+const testout = buildCInstruction(test)
+console.log(testout)
+console.log(testout.length)
