@@ -12,22 +12,6 @@ let lineCounter = 0;
 let freeAddress = 16;
 let jumpDest = 0;
 let variableTable = {
-  0: 0,
-  1: 1,
-  2: 2,
-  3: 3,
-  4: 4,
-  5: 5,
-  6: 6,
-  7: 7,
-  8: 8,
-  9: 9,
-  10: 10,
-  11: 11,
-  12: 12,
-  13: 13,
-  14: 14,
-  15: 15,
   R0: 0,
   R1: 1,
   R2: 2,
@@ -54,7 +38,6 @@ let variableTable = {
 };
 
 function preProcessFile(inputFilePath) {
-
   const inputStream = fs.createReadStream(inputFilePath, 'utf8');
   inputStream.on('data', (chunk) => {
     const lines = chunk.split('\n');
@@ -164,7 +147,7 @@ function buildAInstruction(str) {
   // If the variable name is not in dict add it
   if (!(varName in variableTable)) {
     // if it is an int 
-    if (parseInt(varName)) {
+    if (parseInt(varName) === 0 || parseInt(varName)) {
       variableTable[varName] = parseInt(varName);
     }
     else {
