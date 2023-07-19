@@ -93,7 +93,7 @@ const outputFilePath = path.join(
 );
 
 
-preProcessFile(inputFilePath);
+processFile(inputFilePath, outputFilePath);
   
 
 function stripComments(str) {
@@ -103,27 +103,35 @@ function stripComments(str) {
     if (str[i] === '/' && str[i + 1] && str[i + 1] === '/') {
       comment = true;
     }
-    if (!comment) {
+    if (!comment && str[i] != '\r') {
       output = output + str[i]; 
     }
     if (str[i] == '\n') {
       comment = false;
     }
+    
   }
+
   return output.trim();
 }
+
+
 
 function parse(line) {
   let output = '';
   if (line.length == 0) return output;
   // determine type of command
   if (line[0] == '(') {
-  } else if (line[0] == '@') {
+    // do nothing
+    return output;
+  } else if (line[0]=='@') {
     output = buildAInstruction(line);
+    return output;
   } else {
     output = buildCInstruction(line);
+    return output;
   }
-  return output;
+  //return output;
 }
 
 function handleLabel(str) {
@@ -152,9 +160,6 @@ function buildAInstruction(str) {
     }
     else {
       variableTable[varName] = freeAddress;
-    }
-
-    while (Object.values(variableTable).includes(freeAddress)) {
       freeAddress += 1;
     }
   }
@@ -169,9 +174,6 @@ function buildAInstruction(str) {
 }
 
 function buildCInstruction(str) {
-  if (str == 'AM=M+1') {
-    console.log('here')
-  }
   let prefix = '111';
   let d1 = '0';
   let d2 = '0';
@@ -182,16 +184,13 @@ function buildCInstruction(str) {
   let a = '0';
 
   // if there is a dest
-  
   if (str.includes('=')) {
-
     let dest = str.slice(0, str.indexOf('='));
     if (str.includes(';')){
       comp = str.slice(str.indexOf('=') + 1, str.indexOf(';'));
     } else {
       comp = str.slice(str.indexOf('=') + 1, str.length);
     }
-    
     if (dest.includes('M')) {
       d3 = '1';
     }
@@ -297,13 +296,28 @@ function buildCInstruction(str) {
     console.log(`str: ${str}`)
     console.log(`comp: ${comp}`)
     console.log(`line: ${lineCounter}`)
+    console.log(`c: ${c}`)
 
   }
 
   return output;
 }
 
-const test =  stripComments('AM=M+1')
-const testout = buildCInstruction(test)
-console.log(testout)
-console.log(testout.length)
+const test1 =  stripComments(`
+  // This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/06/pong/Pong.asm
+
+// The Pong game program was originally written in the high-level Jack language.
+// The Jack code was then translated by the Jack compiler into VM code.
+// The VM code was then translated by the VM translator into the Hack
+// assembly code shown here.
+
+@20`
+)
+
+
+//const test2 =  stripComments(`@20`)
+//const testout = parse(test)
+//console.log(test1)
