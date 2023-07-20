@@ -37,53 +37,42 @@ let variableTable = {
   THAT: 4,
 };
 
-function preProcessFile(inputFilePath) {
-  const inputStream = fs.createReadStream(inputFilePath, 'utf8');
-  inputStream.on('data', (chunk) => {
-    const lines = chunk.split('\n');
-    lines.forEach((line) => {
-      handleLabel(stripComments(line));
-    });
+function preProcessFile(inputFilePath, outputFilePath) {
+  const fileStream = fs.createReadStream(inputFilePath);
+  const rl = readline.createInterface({
+    input: fileStream,
+    ctrlDelay: Infinity,
   });
 
-  inputStream.on('end', () => {
-    console.log(`length ${lineCounter}`)
-    lineCounter = 0;
-    console.log('File preprocessing complete.');
-    processFile(inputFilePath, outputFilePath)
+  rl.on('line', (line) => {
+    handleLabel(stripComments(line));
   });
 
-  inputStream.on('error', (err) => {
-    console.error('Error reading input file:', err);
+  rl.on('close', () => {
+    console.log('Preprocessing done');
+    processFile(inputFilePath, outputFilePath);
   });
 }
 
 function processFile(inputFilePath, outputFilePath) {
-  const inputStream = fs.createReadStream(inputFilePath, 'utf8');
-  const outputStream = fs.createWriteStream(outputFilePath, 'utf8');
-  inputStream.on('data', (chunk) => {
-    const lines = chunk.split('\n');
-    lines.forEach((line) => {
-      const processedLine = parse(stripComments(line));
-      if (processedLine.length > 0) {
-        lineCounter += 1;
-        outputStream.write(processedLine + '\n');
-      }
-    });
+  const fileStream = fs.createReadStream(inputFilePath);
+  const writer = fs.createWriteStream(outputFilePath, { flags: 'w' });
+  const rl = readline.createInterface({
+    input: fileStream,
+    ctrlDelay: Infinity,
   });
 
-  inputStream.on('end', () => {
-    // Close the output stream once all lines are written
-    outputStream.end();
-    console.log('File processing complete.');
+  rl.on('line', (line) => {
+    const processedLine = parse(stripComments(line));
+    if (processedLine.length > 0 && processedLine[0] != '(') {
+      lineCounter += 1;
+      writer.write(processedLine + '\n');
+    }
   });
 
-  inputStream.on('error', (err) => {
-    console.error('Error reading input file:', err);
-  });
-
-  outputStream.on('error', (err) => {
-    console.error('Error writing to output file:', err);
+  rl.on('close', () => {
+    console.log('Processing done');
+    writer.end();
   });
 }
 const inputFilePath = filename;
@@ -92,9 +81,7 @@ const outputFilePath = path.join(
   path.basename(filename, path.extname(filename)) + '1' + '.hack'
 );
 
-
-processFile(inputFilePath, outputFilePath);
-  
+preProcessFile(inputFilePath, outputFilePath);
 
 function stripComments(str) {
   let output = '';
@@ -104,27 +91,26 @@ function stripComments(str) {
       comment = true;
     }
     if (!comment && str[i] != '\r') {
-      output = output + str[i]; 
+      output = output + str[i];
     }
     if (str[i] == '\n') {
       comment = false;
     }
-    
   }
 
   return output.trim();
 }
 
-
-
 function parse(line) {
   let output = '';
-  if (line.length == 0) return output;
+  if (line.length == 0) {
+    return output;
+  }
   // determine type of command
   if (line[0] == '(') {
     // do nothing
     return output;
-  } else if (line[0]=='@') {
+  } else if (line[0] == '@') {
     output = buildAInstruction(line);
     return output;
   } else {
@@ -154,11 +140,10 @@ function buildAInstruction(str) {
 
   // If the variable name is not in dict add it
   if (!(varName in variableTable)) {
-    // if it is an int 
+    // if it is an int
     if (parseInt(varName) === 0 || parseInt(varName)) {
       variableTable[varName] = parseInt(varName);
-    }
-    else {
+    } else {
       variableTable[varName] = freeAddress;
       freeAddress += 1;
     }
@@ -166,9 +151,10 @@ function buildAInstruction(str) {
 
   let binVal = Number(variableTable[varName]).toString(2);
   output = ('0000000000000000' + binVal).slice(-16);
-  if (output.length < 16){
-    console.log(`output: ${output}`)
-    console.log(`line: ${lineCounter}`)
+  if (output.length < 16) {
+    console.log('A instruction problem');
+    console.log(`output: ${output}`);
+    console.log(`line: ${lineCounter}`);
   }
   return output;
 }
@@ -186,7 +172,7 @@ function buildCInstruction(str) {
   // if there is a dest
   if (str.includes('=')) {
     let dest = str.slice(0, str.indexOf('='));
-    if (str.includes(';')){
+    if (str.includes(';')) {
       comp = str.slice(str.indexOf('=') + 1, str.indexOf(';'));
     } else {
       comp = str.slice(str.indexOf('=') + 1, str.length);
@@ -200,10 +186,10 @@ function buildCInstruction(str) {
     if (dest.includes('A')) {
       d1 = '1';
     }
-  } else if (str.includes(';')){
+  } else if (str.includes(';')) {
     comp = str.slice(0, str.indexOf(';'));
   } else {
-    comp = str
+    comp = str;
   }
 
   // if there is a jump
@@ -272,7 +258,7 @@ function buildCInstruction(str) {
   if (comp == 'A-1' || comp == 'M-1') {
     c = '110010';
   }
-  if (comp == 'D+A' || comp == 'D+M'||comp == 'A+D' || comp == 'M+D' ) {
+  if (comp == 'D+A' || comp == 'D+M' || comp == 'A+D' || comp == 'M+D') {
     c = '000010';
   }
   if (comp == 'D-A' || comp == 'D-M') {
@@ -281,29 +267,28 @@ function buildCInstruction(str) {
   if (comp == 'A-D' || comp == 'M-D') {
     c = '000111';
   }
-  if (comp == 'D&A' || comp == 'D&M' || comp == 'A&D' || comp == 'M&D' ) {
+  if (comp == 'D&A' || comp == 'D&M' || comp == 'A&D' || comp == 'M&D') {
     c = '000000';
   }
-  if (comp == 'D|A' || comp == 'D|M'|| comp == 'A|D' || comp == 'M|D') {
+  if (comp == 'D|A' || comp == 'D|M' || comp == 'A|D' || comp == 'M|D') {
     c = '010101';
   }
   if (comp.includes('M')) {
     a = '1';
   }
   let output = prefix + a + c + d1 + d2 + d3 + j1j2j3;
-  if (!c || c.length < 6){
-    console.log(`comp length issue`)
-    console.log(`str: ${str}`)
-    console.log(`comp: ${comp}`)
-    console.log(`line: ${lineCounter}`)
-    console.log(`c: ${c}`)
-
+  if (!c || c.length < 6) {
+    console.log(`C instruction problem`);
+    console.log(`str: ${str}`);
+    console.log(`line: ${lineCounter}`);
+    console.log(`c: ${c}`);
+    console.log(`previousLine: ${previousLine}`);
   }
-
+  previousLine = str;
   return output;
 }
 
-const test1 =  stripComments(`
+const test1 = stripComments(`
   // This file is part of www.nand2tetris.org
 // and the book "The Elements of Computing Systems"
 // by Nisan and Schocken, MIT Press.
@@ -314,9 +299,7 @@ const test1 =  stripComments(`
 // The VM code was then translated by the VM translator into the Hack
 // assembly code shown here.
 
-@20`
-)
-
+@20`);
 
 //const test2 =  stripComments(`@20`)
 //const testout = parse(test)
